@@ -1,0 +1,11 @@
+[Unit]
+Description=Razer idle color + reactive keypress effect
+After=openrazer-daemon.service
+Wants=openrazer-daemon.service
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/bin/razer-idle-reactive.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

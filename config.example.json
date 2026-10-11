@@ -1,0 +1,10 @@
+{
+  "base_color": [255, 255, 255],
+  "hit_color": [0, 255, 0],
+  "base_level": 0.25,
+  "hit_level": 1.0,
+  "fade": 2.0,
+  "fps": 30,
+  "toggle_key": "KEY_F13",
+  "keymap": {}
+}
