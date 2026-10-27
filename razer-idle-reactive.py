@@ -22,6 +22,7 @@ import json
 import os
 import selectors
 import signal
+import subprocess
 import sys
 import time
 
@@ -32,6 +33,7 @@ DEFAULTS = {
     "base_color": [255, 255, 255],   # idle color [R, G, B]
     "hit_color": [0, 255, 0],        # keypress color [R, G, B]
     "base_level": 0.25,              # idle intensity, 0.0 to 1.0
+    "logged_out_base_level": None,   # idle intensity while nobody is logged in (needs lingering); null = same as base_level
     "hit_level": 1.0,                # keypress intensity, 0.0 to 1.0
     "fade": 2.0,                     # seconds for the keypress color to fade back to idle
     "fps": 30,                       # redraw rate
@@ -59,6 +61,9 @@ def validate(cfg, path):
         v = cfg[name]
         if not isinstance(v, (int, float)) or not 0 <= v <= 1:
             bad(name, "must be a number from 0.0 to 1.0")
+    lo = cfg["logged_out_base_level"]
+    if lo is not None and (not isinstance(lo, (int, float)) or not 0 <= lo <= 1):
+        bad("logged_out_base_level", "must be a number from 0.0 to 1.0, or null")
     if not isinstance(cfg["fade"], (int, float)) or cfg["fade"] <= 0:
         bad("fade", "must be a number greater than 0")
     if not isinstance(cfg["fps"], int) or cfg["fps"] <= 0:
@@ -207,9 +212,32 @@ def open_input_devices():
     return sel
 
 
+# ------------------------------ login state ---------------------------------
+SESSION_POLL_SECONDS = 2.0
+LOGGED_OUT_STATES = {"lingering", "closing", "offline"}
+
+
+def user_has_session():
+    """True if this user has a login session. With lingering enabled, the user's services keep
+    running after logout and systemd reports the state as 'lingering'."""
+    try:
+        out = subprocess.run(
+            ["loginctl", "show-user", str(os.getuid()), "--property=State", "--value"],
+            capture_output=True, text=True, timeout=2,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return True       # can't tell: behave as if logged in
+    return out not in LOGGED_OUT_STATES
+
+
 # ------------------------------- effect -------------------------------------
 def run(kb, fx, rows, cols, cfg, overrides):
-    base = scale(cfg["base_color"], cfg["base_level"])
+    base_in = scale(cfg["base_color"], cfg["base_level"])
+    out_level = cfg["logged_out_base_level"]
+    base_out = base_in if out_level is None else scale(cfg["base_color"], out_level)
+    base = base_in           # idle color currently in use (changes with login state)
+    logged_in = True
+    last_poll = 0.0
     hit = scale(cfg["hit_color"], cfg["hit_level"])
     fade, fps, debounce = cfg["fade"], cfg["fps"], cfg["toggle_debounce"]
 
@@ -241,6 +269,16 @@ def run(kb, fx, rows, cols, cfg, overrides):
 
     try:
         while True:
+            poll_time = time.monotonic()
+            if out_level is not None and poll_time - last_poll >= SESSION_POLL_SECONDS:
+                last_poll = poll_time
+                has_session = user_has_session()
+                if has_session != logged_in:
+                    logged_in = has_session
+                    base = base_in if logged_in else base_out
+                    print("Session state: " + ("logged in" if logged_in else "logged out"), flush=True)
+                    if not enabled:
+                        kb.fx.static(*base)
             for key, _ in sel.select(timeout=1.0 / fps):
                 try:
                     events = list(key.fileobj.read())
