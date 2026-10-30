@@ -59,6 +59,7 @@ Restart the service after editing: `systemctl --user restart razer-idle-reactive
 | `base_color` | `[255, 255, 255]` | Idle color `[R, G, B]` |
 | `base_level` | `0.25` | Idle intensity, 0.0 to 1.0 |
 | `logged_out_base_level` | `null` | Idle intensity while nobody is logged in (see [below](#dark-at-the-login-screen)). `null` = same as `base_level` |
+| `locked_base_level` | `null` | Idle intensity while the screen is locked. `null` = same as `base_level` |
 | `hit_color` | `[0, 255, 0]` | Keypress color `[R, G, B]` |
 | `hit_level` | `1.0` | Keypress intensity, 0.0 to 1.0 |
 | `fade` | `2.0` | Seconds for the keypress color to fade back to idle |
@@ -99,8 +100,14 @@ sudo loginctl enable-linger $USER
 
 Lingering keeps your user's services running from boot and after logout. While nobody is logged
 in, the idle level drops to `logged_out_base_level` (0.0 = dark) and keypresses still flash and
-fade as usual. When you log in, the normal `base_level` returns. The lock screen counts as logged
-in, so the idle color stays on while locked. Restart the service after changing the config.
+fade as usual. When you log in, the normal `base_level` returns. To go dark while the screen is
+locked too, set `locked_base_level` (for example `0.0`); keypresses still flash. The locked state
+comes from logind's `LockedHint`, which GNOME sets; other desktops may not.
+
+OpenRazer can also switch the keyboard off by itself when the screensaver starts, which hides
+keypress effects while locked. If you want the effect to show then, set
+`devices_off_on_screensaver = False` under `[Startup]` in `~/.config/openrazer/razer.conf` and
+restart the daemon. Restart this service after changing its config.
 
 ## Finding key positions
 
