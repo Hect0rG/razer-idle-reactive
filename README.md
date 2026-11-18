@@ -132,6 +132,44 @@ sits at the idle color and you can pick any other effect. Press it again to resu
 Note that the toggle key is also seen by your desktop, like any other key. F13 to F18 are
 unused on most systems.
 
+### M1 opens Settings (or another desktop action)
+
+This script only listens to key presses and doesn't block them, so your desktop sees every press
+too. Linux's standard keyboard layout turns the macro keys into media-style keys: F13 (M1) becomes
+`XF86Tools`, which GNOME and KDE bind to their Settings app by default, and F14 to F18 (M2 to M6)
+become `XF86Launch5` to `XF86Launch9`, which are normally unbound.
+
+To see what your desktop has bound to those keys (GNOME):
+
+```bash
+gsettings list-recursively | grep -E "XF86Tools|XF86Launch"
+```
+
+On GNOME the Settings shortcut is stored as `control-center-static`. To free M1 so it only toggles
+the effect:
+
+```bash
+gsettings set org.gnome.settings-daemon.plugins.media-keys control-center-static "[]"
+```
+
+To open Settings from M2 instead, also set the editable Settings shortcut:
+
+```bash
+gsettings set org.gnome.settings-daemon.plugins.media-keys control-center-static "[]"
+gsettings set org.gnome.settings-daemon.plugins.media-keys control-center "['XF86Launch5']"
+```
+
+If a change doesn't take effect right away, log out and back in. To undo it:
+
+```bash
+gsettings reset org.gnome.settings-daemon.plugins.media-keys control-center-static
+gsettings reset org.gnome.settings-daemon.plugins.media-keys control-center
+```
+
+Don't use M2 for both Settings and a webhook, because one press would do both. Another option is to
+leave the desktop alone and move the toggle to another macro key with `"toggle_key": "KEY_F14"` in
+your config. On other desktops, look for `XF86Tools` in the keyboard shortcut settings.
+
 ## Dark at the login screen
 
 By default the effect stops when you log out, because both the OpenRazer daemon and this script
@@ -202,14 +240,14 @@ never touches the LEDs.
 
 ### How the keys map
 
-| Key | Key name | LED cell (row, col) |
-|---|---|---|
-| M1 | `KEY_F13` | 5, 0 |
-| M2 | `KEY_F14` | 4, 0 |
-| M3 | `KEY_F15` | 3, 0 |
-| M4 | `KEY_F16` | 2, 0 |
-| M5 | `KEY_F17` | 1, 0 |
-| M6 | `KEY_F18` | 0, 0 |
+| Key | Key name | Desktop sees it as | LED cell (row, col) |
+|---|---|---|---|
+| M1 | `KEY_F13` | `XF86Tools` (opens Settings) | 5, 0 |
+| M2 | `KEY_F14` | `XF86Launch5` | 4, 0 |
+| M3 | `KEY_F15` | `XF86Launch6` | 3, 0 |
+| M4 | `KEY_F16` | `XF86Launch7` | 2, 0 |
+| M5 | `KEY_F17` | `XF86Launch8` | 1, 0 |
+| M6 | `KEY_F18` | `XF86Launch9` | 0, 0 |
 
 M1, M5 and M6 were checked on a BlackWidow V4 X; M2 to M4 follow the same pattern. On other models,
 find the names with the key finder below and the LED cells with `--sweep` (see
@@ -292,15 +330,16 @@ like `KEY_F18: POST -> HTTP 200`. The log never prints your URLs.
 - **Keep the OpenRazer daemon running after you log out.** In testing, the macro keys sent nothing
   when the daemon was stopped. Enable lingering so the daemon keeps running at the login screen:
   `sudo loginctl enable-linger $USER` (see [Dark at the login screen](#dark-at-the-login-screen)).
-- **The service only listens; it doesn't block the keys.** Your desktop still sees F13 to F18. On some
-  GNOME setups F13 is bound to the Settings launcher, so M1 may open Settings. If it does, set
-  `toggle_key` to another macro key such as `KEY_F14`, or find and clear the shortcut with
-  `gsettings list-recursively | grep XF86Tools`.
+- **The service only listens; it doesn't block the keys.** Your desktop still sees F13 to F18, and
+  M1 (F13) opens the Settings app by default. See
+  [M1 opens Settings](#m1-opens-settings-or-another-desktop-action) to free it or move it.
 - **`needs an http:// or https:// url` in the log** means a value in the config isn't a bare URL. A
   pasted `curl ...` command or a stray space or quote is the usual cause.
 
 ## Troubleshooting
 
+- **M1 opens the Settings app**: that's the desktop's default for F13. See
+  [M1 opens Settings](#m1-opens-settings-or-another-desktop-action).
 - **`install: cannot stat 'razer-idle-reactive.py'` (or the same error from `cp`)**: you're not
   inside the project folder. `cd` into the cloned or unzipped folder and run `ls`; you should see
   `razer-idle-reactive.py`, `razer-idle-reactive.service` and `config.example.json`.
