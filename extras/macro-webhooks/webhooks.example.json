@@ -1,0 +1,4 @@
+{
+  "KEY_F18": "http://homeassistant.local:8123/api/webhook/CHANGE_ME_M6",
+  "KEY_F17": "http://homeassistant.local:8123/api/webhook/CHANGE_ME_M5"
+}
