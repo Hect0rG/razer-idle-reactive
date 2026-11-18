@@ -79,7 +79,7 @@ the next step only work from inside the project folder.
 install -Dm755 razer-idle-reactive.py ~/.local/bin/razer-idle-reactive.py
 install -Dm644 razer-idle-reactive.service ~/.config/systemd/user/razer-idle-reactive.service
 
-# optional: your settings
+# optional: create your config file (see "Editing the config file" below)
 mkdir -p ~/.config/razer-idle-reactive
 cp config.example.json ~/.config/razer-idle-reactive/config.json
 
@@ -103,6 +103,7 @@ stop).
 Settings are read from `~/.config/razer-idle-reactive/config.json` (or `$XDG_CONFIG_HOME`, or
 pass `--config PATH`). Every setting is optional; leave out anything you don't want to change.
 Restart the service after editing: `systemctl --user restart razer-idle-reactive.service`.
+New to this? See [Editing the config file](#editing-the-config-file) below.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -122,6 +123,51 @@ A bad value stops the script with a message naming the setting; check the journa
 
 Tip: on many boards the red LEDs are weaker than green, so a dim equal mix can look tinted.
 Nudge the channels if your idle color looks off.
+
+### Editing the config file
+
+The config file is `~/.config/razer-idle-reactive/config.json` (`~` is your home folder). It lives
+outside the project folder on purpose, so updating the project never overwrites your settings.
+
+**If the file doesn't exist yet**, create it from the example. Run this from inside the project
+folder:
+
+```bash
+mkdir -p ~/.config/razer-idle-reactive
+cp config.example.json ~/.config/razer-idle-reactive/config.json
+```
+
+**Edit it** with any text editor, for example:
+
+```bash
+nano ~/.config/razer-idle-reactive/config.json
+```
+
+(In nano, save with Ctrl+O then Enter, and exit with Ctrl+X.) All settings go inside one pair of
+curly braces, as `"name": value` lines, and every line except the last needs a comma at the end. A
+complete example:
+
+```json
+{
+  "base_level": 0.25,
+  "logged_out_base_level": 0.0,
+  "locked_base_level": 0.0,
+  "fade": 2.0
+}
+```
+
+When another section of this README shows a snippet like `"logged_out_base_level": 0.0`, add that
+line inside the braces of this file, next to your other settings. Don't paste a second `{ }` block,
+and mind the commas.
+
+**Check and apply your changes:**
+
+```bash
+python3 -m json.tool ~/.config/razer-idle-reactive/config.json > /dev/null && echo "config OK" && systemctl --user restart razer-idle-reactive.service
+```
+
+The restart only happens if the file is valid JSON. If it isn't, the error names a line. For
+example, `Expecting ',' delimiter: line 3` usually means the line above it is missing its comma.
 
 ## Pausing the effect (to use Polychromatic)
 
@@ -169,7 +215,7 @@ gsettings reset org.gnome.settings-daemon.plugins.media-keys control-center
 
 Don't use M2 for both Settings and a webhook, because one press would do both. Another option is to
 leave the desktop alone and move the toggle to another macro key with `"toggle_key": "KEY_F14"` in
-your config. On other desktops, look for `XF86Tools` in the keyboard shortcut settings.
+your [config file](#editing-the-config-file). On other desktops, look for `XF86Tools` in the keyboard shortcut settings.
 
 ## Optional: Polychromatic (a GUI)
 
@@ -207,30 +253,59 @@ sudo apt install openrazer-meta polychromatic
 
 ## Dark at the login screen
 
-By default the effect stops when you log out, because both the OpenRazer daemon and this script
-are *user* services. To keep it running at the login screen, with the keyboard dark until you
-press a key, enable lingering and set a logged-out idle level:
+By default the effect stops when you log out, because both the OpenRazer daemon and this script are
+*user* services. To keep it running at the login screen, with the keyboard dark until you press a
+key:
+
+**1. Enable lingering**, which keeps your user's services running from boot and after logout:
 
 ```bash
 sudo loginctl enable-linger $USER
 ```
 
+**2. Add the setting to your config file**, `~/.config/razer-idle-reactive/config.json` (see
+[Editing the config file](#editing-the-config-file) if it doesn't exist yet). Put this line inside
+the braces, next to your other settings, and mind the commas:
+
+```json
+"logged_out_base_level": 0.0
+```
+
+For example, the whole file might look like this:
+
 ```json
 {
+  "base_level": 0.25,
   "logged_out_base_level": 0.0
 }
 ```
 
-Lingering keeps your user's services running from boot and after logout. While nobody is logged
-in, the idle level drops to `logged_out_base_level` (0.0 = dark) and keypresses still flash and
-fade as usual. When you log in, the normal `base_level` returns. To go dark while the screen is
-locked too, set `locked_base_level` (for example `0.0`); keypresses still flash. The locked state
-comes from logind's `LockedHint`, which GNOME sets; other desktops may not.
+**3. Check the file and restart the service:**
+
+```bash
+python3 -m json.tool ~/.config/razer-idle-reactive/config.json > /dev/null && echo "config OK" && systemctl --user restart razer-idle-reactive.service
+```
+
+**4. Try it.** Log out: the keyboard should be dark at the login screen, and each key press should
+flash and fade. After you log back in, you can confirm the switch happened:
+
+```bash
+journalctl --user -u razer-idle-reactive | grep "Session state"
+```
+
+You should see `Session state: logged out` and then `Session state: logged in`.
+
+While nobody is logged in, the idle level drops to `logged_out_base_level` (0.0 = dark) and
+keypresses still flash and fade as usual. When you log in, the normal `base_level` returns.
+
+**Dark while the screen is locked too:** add `"locked_base_level": 0.0` to the same file (as in the
+example in [Editing the config file](#editing-the-config-file)). Keypresses still flash. The locked
+state comes from logind's `LockedHint`, which GNOME sets; other desktops may not.
 
 OpenRazer can also switch the keyboard off by itself when the screensaver starts, which hides
 keypress effects while locked. If you want the effect to show then, set
-`devices_off_on_screensaver = False` under `[Startup]` in `~/.config/openrazer/razer.conf` and
-restart the daemon. Restart this service after changing its config.
+`devices_off_on_screensaver = False` under `[Startup]` in `~/.config/openrazer/razer.conf`, then
+restart the daemon (`systemctl --user restart openrazer-daemon.service`).
 
 ## Finding key positions
 
@@ -245,7 +320,10 @@ python3 ~/.local/bin/razer-idle-reactive.py --sweep 1       # light row 1 cell b
 python3 ~/.local/bin/razer-idle-reactive.py --probe 3 14    # light one cell and wait
 ```
 
-Then correct any keys in the `keymap` section of your config:
+Then correct any keys in the `keymap` section of your config file
+(`~/.config/razer-idle-reactive/config.json`; see [Editing the config file](#editing-the-config-file)).
+The `keymap` entry goes inside the same braces as your other settings, so add it next to them
+instead of pasting a second `{ }` block:
 
 ```json
 {
@@ -289,7 +367,8 @@ find the names with the key finder below and the LED cells with `--sweep` (see
 [Finding key positions](#finding-key-positions)).
 
 M1 is this project's pause/resume key by default (`toggle_key`), so use M2 to M6 for webhooks, or
-change `toggle_key` in your config.
+change `toggle_key` in your
+[config file](#editing-the-config-file).
 
 To see which name a key sends, run this and press it (Ctrl+C to quit):
 
