@@ -128,9 +128,10 @@ Nudge the channels if your idle color looks off.
 While the script runs it redraws the whole matrix every frame, so it will override anything
 you apply in Polychromatic. Press the toggle key (M1 by default) to pause it: the keyboard
 sits at the idle color and you can pick any other effect. Press it again to resume.
+Polychromatic is optional; [here's how to install it](#optional-polychromatic-a-gui).
 
-Note that the toggle key is also seen by your desktop, like any other key. F13 to F18 are
-unused on most systems.
+Note that the toggle key is also seen by your desktop, like any other key, and on many desktops F13
+(M1) opens the Settings app. See [below](#m1-opens-settings-or-another-desktop-action) to change that.
 
 ### M1 opens Settings (or another desktop action)
 
@@ -169,6 +170,40 @@ gsettings reset org.gnome.settings-daemon.plugins.media-keys control-center
 Don't use M2 for both Settings and a webhook, because one press would do both. Another option is to
 leave the desktop alone and move the toggle to another macro key with `"toggle_key": "KEY_F14"` in
 your config. On other desktops, look for `XF86Tools` in the keyboard shortcut settings.
+
+## Optional: Polychromatic (a GUI)
+
+razer-idle-reactive is a background script with no window. If you also want a graphical app for
+Razer's built-in effects, per-key colors, brightness and your other Razer devices, install
+[Polychromatic](https://polychromatic.app/), which works on top of OpenRazer. Use it while this
+effect is paused (press the toggle key, M1 by default), because the script redraws the keyboard every
+frame and would otherwise override what you pick.
+
+First see whether your distro already packages it:
+
+```bash
+apt policy polychromatic
+```
+
+If it shows a candidate version, install it with `sudo apt install polychromatic`. Otherwise, or if
+you want the newest versions of OpenRazer and Polychromatic, use the projects' PPAs:
+
+```bash
+sudo add-apt-repository ppa:openrazer/stable
+sudo add-apt-repository ppa:polychromatic/stable
+sudo apt update
+sudo apt install openrazer-meta polychromatic
+```
+
+- If you already installed OpenRazer in the install steps above, the PPA upgrades it. Reboot afterwards,
+  because the kernel driver is rebuilt.
+- PPAs can lag behind new Ubuntu releases. If `apt update` says a PPA "does not have a Release file",
+  remove it with `sudo add-apt-repository --remove ppa:openrazer/stable` (or
+  `ppa:polychromatic/stable`) and use your distro's packages instead.
+- Open Polychromatic from your application menu. Pause this effect first (see
+  [Pausing the effect](#pausing-the-effect-to-use-polychromatic)).
+- Other distros: see the install pages at [openrazer.github.io](https://openrazer.github.io/) and
+  [polychromatic.app](https://polychromatic.app/).
 
 ## Dark at the login screen
 
@@ -347,7 +382,8 @@ like `KEY_F18: POST -> HTTP 200`. The log never prints your URLs.
   prerequisites, then check `lsmod | grep razer`. If the driver is loaded and the list is still
   empty, the OpenRazer version in your distro may be too old for your keyboard model. Check the
   supported device list at [openrazer.github.io](https://openrazer.github.io/) and install a newer
-  OpenRazer release.
+  OpenRazer release from the OpenRazer PPA (see [Optional: Polychromatic](#optional-polychromatic-a-gui)).
+  Some setups also need your user in the `plugdev` group: `sudo gpasswd -a $USER plugdev`, then reboot.
 - **Permission errors reading `/dev/input`**: you're not in the `input` group in your current
   login session yet. Log out and back in (or reboot) after `sudo gpasswd -a $USER input`.
 - **The service stops right after starting**: read the last lines of
