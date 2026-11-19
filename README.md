@@ -98,6 +98,9 @@ The status should say `active (running)`, and your keys should sit at the idle c
 press. To try it by hand instead, run `python3 ~/.local/bin/razer-idle-reactive.py` (Ctrl+C to
 stop).
 
+Want the keyboard dark but still flashing at the login and lock screens? See
+[Dark at the login and lock screens](#dark-at-the-login-and-lock-screens).
+
 ## Configuration
 
 Settings are read from `~/.config/razer-idle-reactive/config.json` (or `$XDG_CONFIG_HOME`, or
@@ -109,8 +112,8 @@ New to this? See [Editing the config file](#editing-the-config-file) below.
 |---|---|---|
 | `base_color` | `[255, 255, 255]` | Idle color `[R, G, B]` |
 | `base_level` | `0.25` | Idle intensity, 0.0 to 1.0 |
-| `logged_out_base_level` | `null` | Idle intensity while nobody is logged in (see [below](#dark-at-the-login-screen)). `null` = same as `base_level` |
-| `locked_base_level` | `null` | Idle intensity while the screen is locked. `null` = same as `base_level` |
+| `logged_out_base_level` | `null` | Idle intensity while nobody is logged in (see [below](#dark-at-the-login-and-lock-screens)). `null` = same as `base_level` |
+| `locked_base_level` | `null` | Idle intensity while the screen is locked (see [below](#dark-at-the-login-and-lock-screens)). `null` = same as `base_level` |
 | `hit_color` | `[0, 255, 0]` | Keypress color `[R, G, B]` |
 | `hit_level` | `1.0` | Keypress intensity, 0.0 to 1.0 |
 | `fade` | `2.0` | Seconds for the keypress color to fade back to idle |
@@ -251,61 +254,79 @@ sudo apt install openrazer-meta polychromatic
 - Other distros: see the install pages at [openrazer.github.io](https://openrazer.github.io/) and
   [polychromatic.app](https://polychromatic.app/).
 
-## Dark at the login screen
+## Dark at the login and lock screens
 
-By default the effect stops when you log out, because both the OpenRazer daemon and this script are
-*user* services. To keep it running at the login screen, with the keyboard dark until you press a
-key:
+By default the effect stops when you log out, and OpenRazer switches the keyboard off when the
+screen locks. To keep the keyboard dark but still flashing on every key press at the login screen
+and the lock screen, do all five steps.
 
-**1. Enable lingering**, which keeps your user's services running from boot and after logout:
+**1. Enable lingering**, which keeps your user's services (the OpenRazer daemon and this script)
+running from boot and after logout:
 
 ```bash
 sudo loginctl enable-linger $USER
 ```
 
-**2. Add the setting to your config file**, `~/.config/razer-idle-reactive/config.json` (see
-[Editing the config file](#editing-the-config-file) if it doesn't exist yet). Put this line inside
+**2. Stop OpenRazer from switching the keyboard off on lock:**
+
+```bash
+mkdir -p ~/.config/openrazer
+[ -f ~/.config/openrazer/razer.conf ] || cp /usr/share/openrazer/razer.conf.example ~/.config/openrazer/razer.conf
+sed -i 's/^devices_off_on_screensaver.*/devices_off_on_screensaver = False/' ~/.config/openrazer/razer.conf
+grep -n devices_off_on_screensaver ~/.config/openrazer/razer.conf
+```
+
+The `grep` should print `devices_off_on_screensaver = False`. If it prints nothing, add that line
+under `[Startup]` with `nano ~/.config/openrazer/razer.conf`.
+
+Despite its name, this setting doesn't disable your desktop's screensaver, screen blanking or lock
+screen. Those belong to your desktop and keep working. It only controls whether the OpenRazer daemon
+turns the keyboard's lights off when they start. While the daemon holds the lights off, nothing this
+script draws is visible, so key presses show no effect.
+
+**3. Add the settings to your config file**, `~/.config/razer-idle-reactive/config.json` (see
+[Editing the config file](#editing-the-config-file) if it doesn't exist yet). Put these lines inside
 the braces, next to your other settings, and mind the commas:
 
 ```json
-"logged_out_base_level": 0.0
+"logged_out_base_level": 0.0,
+"locked_base_level": 0.0
 ```
+
+- `logged_out_base_level` is the idle brightness while nobody is logged in (the login screen).
+- `locked_base_level` is the idle brightness while the screen is locked.
+- `0.0` is dark. Leave either one out to keep your normal `base_level` in that state.
 
 For example, the whole file might look like this:
 
 ```json
 {
   "base_level": 0.25,
-  "logged_out_base_level": 0.0
+  "logged_out_base_level": 0.0,
+  "locked_base_level": 0.0
 }
 ```
 
-**3. Check the file and restart the service:**
+**4. Check the file and restart both services** (the daemon re-reads its config when it starts):
 
 ```bash
-python3 -m json.tool ~/.config/razer-idle-reactive/config.json > /dev/null && echo "config OK" && systemctl --user restart razer-idle-reactive.service
+python3 -m json.tool ~/.config/razer-idle-reactive/config.json > /dev/null && echo "config OK" && systemctl --user restart openrazer-daemon.service razer-idle-reactive.service
 ```
 
-**4. Try it.** Log out: the keyboard should be dark at the login screen, and each key press should
-flash and fade. After you log back in, you can confirm the switch happened:
+**5. Try it.** Log out once, or reboot, so everything starts cleanly with the new settings. At the
+login screen the keyboard should be dark, and each key press should flash and fade. After you log in,
+lock the screen (Super+L) and check that it behaves the same way. To confirm what happened:
 
 ```bash
 journalctl --user -u razer-idle-reactive | grep "Session state"
+journalctl --user -u openrazer-daemon --since "10 minutes ago" | grep -E "Suspending|Resuming"
 ```
 
-You should see `Session state: logged out` and then `Session state: logged in`.
+The first command should show `Session state: logged out`, `locked` and `logged in` lines as you
+moved between them. The second should show no new `Suspending` line when you locked the screen. If
+it does, step 2 didn't take effect.
 
-While nobody is logged in, the idle level drops to `logged_out_base_level` (0.0 = dark) and
-keypresses still flash and fade as usual. When you log in, the normal `base_level` returns.
-
-**Dark while the screen is locked too:** add `"locked_base_level": 0.0` to the same file (as in the
-example in [Editing the config file](#editing-the-config-file)). Keypresses still flash. The locked
-state comes from logind's `LockedHint`, which GNOME sets; other desktops may not.
-
-OpenRazer can also switch the keyboard off by itself when the screensaver starts, which hides
-keypress effects while locked. If you want the effect to show then, set
-`devices_off_on_screensaver = False` under `[Startup]` in `~/.config/openrazer/razer.conf`, then
-restart the daemon (`systemctl --user restart openrazer-daemon.service`).
+The locked state comes from logind's `LockedHint`, which GNOME sets; other desktops may not.
 
 ## Finding key positions
 
@@ -443,7 +464,7 @@ like `KEY_F18: POST -> HTTP 200`. The log never prints your URLs.
   shortcut, once from the service), and a toggle webhook will flip on and straight back off.
 - **Keep the OpenRazer daemon running after you log out.** In testing, the macro keys sent nothing
   when the daemon was stopped. Enable lingering so the daemon keeps running at the login screen:
-  `sudo loginctl enable-linger $USER` (see [Dark at the login screen](#dark-at-the-login-screen)).
+  `sudo loginctl enable-linger $USER` (see [Dark at the login and lock screens](#dark-at-the-login-and-lock-screens)).
 - **The service only listens; it doesn't block the keys.** Your desktop still sees F13 to F18, and
   M1 (F13) opens the Settings app by default. See
   [M1 opens Settings](#m1-opens-settings-or-another-desktop-action) to free it or move it.
@@ -452,6 +473,12 @@ like `KEY_F18: POST -> HTTP 200`. The log never prints your URLs.
 
 ## Troubleshooting
 
+- **No effect while the screen is locked (for example overnight)**: the OpenRazer daemon is switching
+  the keyboard off. Look for `Suspending` in `journalctl --user -u openrazer-daemon`, then follow
+  step 2 of [Dark at the login and lock screens](#dark-at-the-login-and-lock-screens).
+- **No effect at the login screen**: check that `loginctl show-user $USER -p Linger` prints
+  `Linger=yes` (step 1 of the section above), that `systemctl --user is-enabled openrazer-daemon.service razer-idle-reactive.service`
+  prints `enabled` twice, then log out once or reboot.
 - **M1 opens the Settings app**: that's the desktop's default for F13. See
   [M1 opens Settings](#m1-opens-settings-or-another-desktop-action).
 - **`install: cannot stat 'razer-idle-reactive.py'` (or the same error from `cp`)**: you're not
